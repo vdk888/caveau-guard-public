@@ -14,7 +14,7 @@ documents in an AI assistant. 100 % local, no network, no account, no telemetry.
 3. Paste:
 
    ```
-   Bubble-invest/caveau-guard
+   vdk888/caveau-guard-public
    ```
 
 4. Install **caveau-guard** and toggle it on.
@@ -26,7 +26,7 @@ That’s it — no GitHub account needed (this is a public repository), and it r
 ### Claude Code (CLI) alternative
 
 ```
-/plugin marketplace add Bubble-invest/caveau-guard
+/plugin marketplace add vdk888/caveau-guard-public
 /plugin install caveau-guard@bubble-caveau
 ```
 
