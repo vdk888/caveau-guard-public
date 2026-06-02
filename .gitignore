@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+# never ship a real firm-identity config (only the .example)
+**/deployment_allowlist.json
+**/caveau-guard.json

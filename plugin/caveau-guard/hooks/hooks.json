@@ -1,0 +1,26 @@
+{
+  "description": "Caveau guard — block reads of protected client folders until anonymised; tripwire raw PII pasted/uploaded into the chat.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|Glob|Grep|Bash|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tripwire.py"
+          }
+        ]
+      }
+    ]
+  }
+}

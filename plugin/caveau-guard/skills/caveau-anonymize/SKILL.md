@@ -1,0 +1,100 @@
+---
+description: Anonymise a protected client folder through Caveau before reading it. Use when the caveau-guard hook blocks access to a client dossier, or when the user asks to "anonymise", "cloak", "pseudonymise", or "run Caveau on" a folder or file containing client PII. Handles PDF and Word (.docx) files automatically (text extracted before anonymising), plus .txt/.md/.csv/.json. Produces a local, reversible, fail-closed anonymised copy whose token↔value vault never leaves the machine.
+---
+
+# Caveau — anonymise before reading
+
+The `caveau-guard` hook blocks reads of protected client folders because raw
+identifying data must never enter the model context in clear. This skill is the
+sanctioned path: anonymise locally first, then work on the cloaked copy.
+
+## When you were just blocked
+
+If a tool call was denied with a `🔒 Caveau` message, do NOT try to bypass it
+(no `cat`, no copying the file elsewhere, no reading via Bash). Instead:
+
+1. Tell the user the file is in a protected folder and offer to anonymise it.
+2. Run the anonymisation below into a `clean/` sub-folder.
+3. Read and work on the anonymised copy.
+4. When you produce an answer that contains tokens like `⟦NOM_0001⟧`,
+   de-anonymise it locally for the user with the same vault.
+
+## How to anonymise (local, offline)
+
+The plugin is **fully self-contained** — it bundles the Caveau engine and a
+pure-python PDF reader under `vendor/`, so it runs from a GitHub install or a
+Cowork zip with **no `pip install`, no engine on the user's machine, no
+network**. Just Python 3.10+ (already present on any Mac).
+
+**PDFs and plain files work out of the box.** `scripts/caveau_extract.py` turns a
+`.pdf` (and `.txt/.md/.csv/.json`) into text *before* anonymising — one command
+covers a whole dossier. `.docx` is the one format that still needs an extra lib
+(`pip install python-docx`); a scanned/image-only or encrypted PDF **fails
+closed** (raises, never returns empty) — extract its text by hand, never wave it
+through.
+
+```bash
+# Whole dossier → cloaked copies + one shared vault. PDFs auto-extracted.
+python3 - <<'PY'
+import os, sys
+from pathlib import Path
+
+# Self-contained: the plugin bundles its deps under vendor/ (the engine + pypdf).
+# CLAUDE_PLUGIN_ROOT is exported by Claude Code while the plugin is active.
+PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parent))
+sys.path.insert(0, str(PLUGIN_ROOT / "vendor"))    # bundled caveau engine + pypdf
+sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))   # bundled extractor
+from caveau_extract import extract_file, ExtractionError
+
+from caveau import AnonymizationEngine, Vault
+
+SRC = Path("~/Dossiers-clients/dossier-dupont").expanduser()   # the protected folder
+OUT = SRC / "clean"                                            # allow-listed output dir
+OUT.mkdir(exist_ok=True)
+
+vault = Vault(mission=SRC.name)          # ONE shared vault per dossier → same client = same token everywhere
+engine = AnonymizationEngine(vault=vault)
+
+PATTERNS = ("*.txt", "*.md", "*.csv", "*.json", "*.pdf", "*.docx")
+for pat in PATTERNS:
+    for f in sorted(SRC.glob(pat)):
+        try:
+            text = extract_file(f)               # PDF/.docx → text; plain files decode
+        except ExtractionError as e:
+            print(f"⛔ {f.name}: {e} — SKIP (extrais le texte à la main, ne le laisse pas passer)")
+            continue
+        res = engine.anonymize(text)
+        (OUT / f"{f.stem}.anon.txt").write_text(res.anonymized, encoding="utf-8")
+        if not res.safe_to_send:
+            print(f"⚠️ {f.name}: {res.verdict_fr} — relecture humaine requise")
+
+vault.save_encrypted(str(SRC / ".vault.enc"), passphrase="<set-by-operator>")  # coffre chiffré, reste local
+print("done — clean/ contains the cloaked copies; the vault never leaves this machine")
+PY
+```
+
+If `${CLAUDE_PLUGIN_ROOT}` isn't set in your shell (e.g. running the snippet by
+hand), point `sys.path` at the plugin's `scripts/` dir directly, or call the
+extractor as a CLI: `python3 <plugin>/scripts/caveau_extract.py <file.pdf>`.
+
+Then read `clean/*.anon.txt` (the `clean/` sub-folder should be in the guard's
+`allow_paths`, or `.anon.txt` in `allow_extensions`, so it's readable).
+
+## De-anonymise the answer
+
+When you've drafted a summary/letter that still contains `⟦TYPE_NNNN⟧` tokens,
+restore the real values locally before handing it to the user:
+
+```python
+from caveau import AnonymizationEngine, Vault
+vault = Vault.load_encrypted("~/Dossiers-clients/dossier-dupont/.vault.enc", passphrase="...")
+engine = AnonymizationEngine(vault=vault)
+print(engine.deanonymize(draft_with_tokens))
+```
+
+## Rules
+
+- **Never bypass the guard.** No reading the raw file via an alternate tool.
+- **One vault per dossier** so the same client gets the same token across all files.
+- **Fail-closed:** if `safe_to_send` is false, flag it — do not treat the doc as safe.
+- **The vault is the secret.** It stays on the machine; it is never sent to any model.

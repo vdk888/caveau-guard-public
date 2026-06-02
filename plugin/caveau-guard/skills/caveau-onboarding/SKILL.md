@@ -1,0 +1,162 @@
+---
+name: caveau-onboarding
+description: Help a non-technical user (a CGP / financial advisor) understand, configure, and use the Caveau Guard plugin — what it does, how to protect a client folder, how to run the local anonymiser webapp, and how to read the risk-control dashboard. Use this skill whenever the user asks "how does Caveau work", "how do I set this up / configure it", "which folders are protected", "how do I anonymise a dossier / run the web app", "what's the dashboard / config table", or seems unsure how to operate the tool — even if they don't name it. Lead with plain language, never jargon, because the user is not technical.
+---
+
+# Caveau — onboarding & operation (for a non-technical advisor)
+
+Your user is a **financial advisor (CGP/CIF)**, not an engineer. They installed
+Caveau Guard to safely use an AI assistant on real client files without sending
+identifying data to a model. Your job is to make the tool feel obvious and
+trustworthy. Explain in plain French, with concrete analogies, and *do* the
+setup steps for them rather than handing over commands to run.
+
+The golden rule to convey: **the client's real name, address, account numbers
+never leave this computer.** Everything else follows from that.
+
+## How Caveau works — the one-paragraph version (say this first)
+
+"Avant de parler à l'IA, Caveau remplace les informations qui identifient votre
+client (nom, adresse, IBAN, e-mail…) par des étiquettes anonymes — un peu comme
+un vestiaire de théâtre où chaque manteau reçoit un numéro. L'IA travaille sur la
+version anonymisée, sans jamais savoir de qui il s'agit. Quand elle a fini, on
+remet les vrais noms dans sa réponse. La table de correspondance (vos noms ↔ les
+numéros) reste dans un tiroir fermé, sur votre ordinateur."
+
+Then, if they want more, the two pieces:
+
+1. **The guard (le verrou).** While it's on, the assistant is *physically blocked*
+   from opening files in your protected client folders. If it tries, it's
+   stopped and told to anonymise first. So even a mistake can't leak a raw file.
+2. **The anonymiser (le coffre).** Turns a file into an anonymised copy you (and
+   the assistant) can safely work on. Reversible: the answer gets de-anonymised
+   at the end.
+
+There's a fuller plain-language script in `references/explain-to-client.md` —
+read it when the user wants the "how does this actually work / is it really
+safe?" conversation, or before a demo.
+
+## The three things they'll want to do
+
+### 1. Protect a client folder — drop a marker INSIDE it (Cowork-native)
+
+The whole tool hinges on one thing: **marking which folders hold client data**.
+Until a folder is marked, the guard leaves it alone (it fails *safe* by staying
+inert on unmarked folders, not by blocking everything).
+
+**In Cowork, you protect a folder by putting a tiny marker file inside it** —
+`.caveau-guard.json`. The guard then blocks every read/edit of anything in that
+folder (and its sub-folders). This is the ONLY method that works in Cowork,
+because Cowork is sandboxed: it can write into a folder the user has connected to
+the session, but it CANNOT write to `~/.config` or other hidden system folders
+(it will refuse — "overlaps a protected host location"). So the config lives
+*with the data*, like a `.gitignore`.
+
+**Do this for the user (don't hand them Terminal commands):**
+
+1. **Ask where their client files live** and have them point you at that folder.
+   Common answers: a `Clients` sub-folder in Dropbox, a `Souscriptions` folder in
+   Downloads. (Use `AskUserQuestion` if helpful, but accept a free-text path —
+   they may name a specific dossier like `Downloads/Souscription X`.)
+2. **Get access to that folder.** If it isn't already connected to the session,
+   request it with the `request_cowork_directory` tool (path = the client
+   folder). The user approves once. ⚠️ Request the **client folder itself**, never
+   `~/.config`, `~`, or a system path — those are rejected.
+3. **Write the marker** into that folder: create `<client-folder>/.caveau-guard.json`.
+   Minimal contents that also exempt the anonymised-output sub-folder:
+   ```json
+   {
+     "allow_paths": ["clean"],
+     "allow_extensions": [".anon.txt"],
+     "block_bash": true,
+     "tripwire_enabled": true
+   }
+   ```
+   An empty `{}` works too (just protects the folder). `allow_paths` entries may
+   be relative to the marker's folder. The marker file itself is never blocked.
+4. **Confirm it's live.** Tell the user the folder is now protected — anything
+   inside it is the *coffre*, and you'll anonymise before reading. (No
+   `/reload-plugins` needed for a new marker: the guard re-reads markers on every
+   file access. `/reload-plugins` is only needed once, right after the plugin is
+   first installed/enabled in Cowork.)
+
+To protect **another** folder later: same thing — drop a `.caveau-guard.json`
+into it. To **stop** protecting a folder: delete its marker.
+
+> CLI fallback (only if the user runs Claude Code in a terminal, not Cowork): a
+> global `~/.config/caveau/caveau-guard.json` with a `protected_folders` list
+> also works and composes with markers. Most clients use Cowork — prefer the
+> marker. Full field reference for both in `references/configure.md`.
+
+### 2. Anonymise a dossier (one command)
+
+When the user wants the assistant to work on a real dossier, use the companion
+skill **`caveau-anonymize`** — it handles PDFs and Word docs automatically and
+writes anonymised copies into a `clean/` sub-folder. You don't need to re-explain
+the mechanics here; just invoke that skill and work on the cloaked copies.
+
+If they prefer a visual, point them at the webapp (next).
+
+### 3. Run the local web app (the visual tool)
+
+Some advisors like to *see* the before/after rather than trust a black box. The
+webapp does exactly that, and also hosts the risk-control dashboard + the
+masquer/conserver settings.
+
+- It's a local app — runs only on their machine, binds to `127.0.0.1`, makes no
+  outbound calls. Reassure them: closing the terminal stops it; nothing is
+  published.
+- Launch it for them and give them the link (see `references/run-webapp.md` for
+  the exact command, the port, and troubleshooting). The standard URL is
+  `http://127.0.0.1:8765`.
+- Tabs they'll use:
+  - **Accueil** — paste text or drop a document → see what gets anonymised.
+  - **Contrôle & réglages** (the dashboard) — see how often the tool ran, what
+    was flagged "à relire", and the **masquer/conserver** table.
+
+## The masquer / conserver table — the one setting advisors actually tune
+
+This is where the advisor decides, per type of data, what to **hide** vs **keep
+in clear**. Explain the *why*, because it's the crux:
+
+- **Keep € amounts (montants).** The advisor often wants to ask the assistant
+  "is this allocation coherent with the client's risk profile?" — which needs the
+  numbers. So amounts default to *kept*.
+- **Hide the job title (poste).** "Directeur marketing chez TotalEnergies"
+  identifies the person almost as surely as their name — so it's *hidden* by
+  default.
+
+They can flip any toggle and save; it sticks and applies to the next
+anonymisation. Frame it as *their* risk call, and gently warn before they keep an
+"identifiant" item in clear.
+
+## How to talk to the client — tone
+
+- **Plain words, no acronyms.** Say "les informations qui identifient votre
+  client", not "PII". Say "étiquette anonyme", not "token".
+- **Lead with the reassurance**, then the mechanism: the real data never leaves
+  the computer; the AI only sees anonymised copies; it's reversible.
+- **Use the vestiaire (cloakroom) analogy** — it lands instantly with
+  non-technical people.
+- **Be honest about limits.** It's a strong safety measure, not a magic shield:
+  a human should still glance at anything flagged "à relire", and it doesn't
+  replace the firm's RGPD paperwork (DPA/AIPD). Saying this *builds* trust.
+- **Never paste raw client data into the chat to demonstrate.** Use the webapp's
+  built-in fictional sample, or anonymise first.
+
+See `references/explain-to-client.md` for ready-to-say scripts (the 30-second
+pitch, the "is it really safe?" answer, the demo walk-through).
+
+## When something looks wrong
+
+- "The assistant says it can't read my file" → that's the guard working. Run
+  `caveau-anonymize` on the folder, then work on the `clean/` copies.
+- "Nothing is being blocked" → the folder probably has no `.caveau-guard.json`
+  marker (step 1), or the plugin was just installed and the session still needs a
+  one-time `/reload-plugins`. Check that the marker file exists inside the client
+  folder.
+- "A PDF won't anonymise" → it may be a scanned image (no text). Caveau fails
+  *closed* there on purpose; tell the user to paste the text manually rather than
+  risk missing PII.
+- An amount/job-title is hidden or kept against their wish → it's the
+  masquer/conserver table; adjust it (step 3) and re-run.

@@ -1,0 +1,22 @@
+{
+  "name": "caveau-guard",
+  "description": "Fail-closed PII guard for Cowork — blocks Claude from reading protected client folders until the data is run through Caveau's local, reversible anonymiser.",
+  "version": "1.2.1",
+  "author": {
+    "name": "Bubble Invest",
+    "email": "rd@bubbleinvest.com"
+  },
+  "homepage": "https://bubbleinvest.com/caveau",
+  "license": "MIT",
+  "keywords": [
+    "pii",
+    "anonymisation",
+    "rgpd",
+    "gdpr",
+    "guard",
+    "hook",
+    "cowork",
+    "finance",
+    "cgp"
+  ]
+}
