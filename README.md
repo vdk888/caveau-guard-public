@@ -27,7 +27,7 @@ That’s it — no GitHub account needed (this is a public repository), and it r
 
 ```
 /plugin marketplace add Bubble-invest/caveau-guard
-/plugin install caveau-guard@caveau-guard
+/plugin install caveau-guard@bubble-caveau
 ```
 
 ## How it works
