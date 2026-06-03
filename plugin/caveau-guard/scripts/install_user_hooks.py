@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -39,8 +40,62 @@ PRETOOL_MATCHER = "Read|Edit|Write|Glob|Grep|Bash|NotebookEdit|mcp__workspace__b
 # A marker so we can recognise (and update) our own entries idempotently.
 MARKER = "caveau-guard"
 
-GUARD_CMD = f"CLAUDE_PLUGIN_ROOT={PLUGIN_ROOT} python3 {PLUGIN_ROOT}/scripts/guard.py"
-TRIP_CMD = f"CLAUDE_PLUGIN_ROOT={PLUGIN_ROOT} python3 {PLUGIN_ROOT}/scripts/tripwire.py"
+# ---------------------------------------------------------------------------
+# STABLE INSTALL DIR — why this exists (incident 2026-06-03)
+# ---------------------------------------------------------------------------
+# CLAUDE_PLUGIN_ROOT in Cowork points at a TEMP staging dir
+# (/var/folders/.../T/claude-hostloop-plugins/<hash>/). macOS purges that dir on
+# reboot/idle. If we bake that volatile path into the user-settings hook command,
+# the next session runs a PreToolUse command whose script no longer exists → the
+# hook errors → and a failing PreToolUse hook BLOCKS the tool. Result: every
+# Bash/Read dies and the user's Claude is bricked until someone hand-edits
+# settings.json. (This actually happened.)
+#
+# Fix: copy the hook scripts ONCE into a stable, never-purged location under the
+# user's real home, and point the settings hook at THAT copy — never at the temp
+# plugin root. We also wrap the command so a missing script FAILS OPEN (a guard
+# that can't find itself must not brick the machine).
+STABLE_DIR = Path(os.environ.get("HOME") or os.path.expanduser("~")) / ".claude" / "caveau-guard"
+
+
+def _install_scripts() -> Path:
+    """Copy guard.py + tripwire.py (and their config dir) into STABLE_DIR.
+
+    Returns STABLE_DIR. Idempotent — overwrites with the current plugin version
+    each session so updates propagate. guard.py/tripwire.py are pure-stdlib and
+    discover config via in-folder markers + ~/.config (NOT via plugin root), so
+    relocating them does not break config loading.
+    """
+    src = Path(PLUGIN_ROOT) / "scripts"
+    STABLE_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("guard.py", "tripwire.py"):
+        s = src / name
+        if s.is_file():
+            shutil.copy2(s, STABLE_DIR / name)
+    # carry the optional plugin-root config fallback alongside the scripts so the
+    # relocated copy keeps the same back-compat search behaviour
+    cfg_src = Path(PLUGIN_ROOT) / "config"
+    if cfg_src.is_dir():
+        shutil.copytree(cfg_src, STABLE_DIR / "config", dirs_exist_ok=True)
+    return STABLE_DIR
+
+
+def _wrapped_cmd(script: str) -> str:
+    """Hook command that FAILS OPEN if the script is missing.
+
+    `[ -f X ] && python3 X || exit 0` — if the stable script ever disappears,
+    the hook exits 0 (allow) instead of erroring (which would block the tool).
+    This is the safety net that prevents a repeat of the temp-purge self-lock.
+    """
+    path = f"{STABLE_DIR}/{script}"
+    return (
+        f"[ -f '{path}' ] && CLAUDE_PLUGIN_ROOT='{STABLE_DIR}' python3 '{path}' "
+        f"|| exit 0  # {MARKER}:{script}"
+    )
+
+
+GUARD_CMD = _wrapped_cmd("guard.py")
+TRIP_CMD = _wrapped_cmd("tripwire.py")
 
 
 def _user_settings_path() -> Path:
@@ -51,10 +106,17 @@ def _user_settings_path() -> Path:
 
 
 def _entry_is_caveau(entry: dict, kind: str) -> bool:
-    """True if this hook-array entry is one we installed (by command marker)."""
+    """True if this hook-array entry is one we installed (by command marker).
+
+    Matches if the command references our script (`kind`, e.g. "guard.py") AND
+    is recognisably ours — either it carries the MARKER or it points at our
+    plugin/stable dir. This MUST catch stale entries from older installs (incl.
+    the temp-path ones from the 2026-06-03 incident) so they get replaced, never
+    duplicated or left dangling.
+    """
     for h in entry.get("hooks", []):
         cmd = h.get("command", "")
-        if MARKER in cmd and (kind in cmd):
+        if kind in cmd and (MARKER in cmd or "caveau" in cmd.lower()):
             return True
     return False
 
@@ -66,6 +128,10 @@ def main() -> None:
         pass
 
     try:
+        # 1) copy the hook scripts to a stable, never-purged location FIRST, so
+        #    the command we write below points at a path that survives reboots.
+        _install_scripts()
+
         p = _user_settings_path()
         p.parent.mkdir(parents=True, exist_ok=True)
         data = {}
