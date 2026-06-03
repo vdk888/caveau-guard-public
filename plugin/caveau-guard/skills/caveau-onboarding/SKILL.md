@@ -1,6 +1,6 @@
 ---
 name: caveau-onboarding
-description: Help a non-technical user (a CGP / financial advisor) understand, configure, and use the Caveau Guard plugin — what it does, how to protect a client folder, how to run the local anonymiser webapp, and how to read the risk-control dashboard. Use this skill whenever the user asks "how does Caveau work", "how do I set this up / configure it", "which folders are protected", "how do I anonymise a dossier / run the web app", "what's the dashboard / config table", or seems unsure how to operate the tool — even if they don't name it. Lead with plain language, never jargon, because the user is not technical.
+description: Help a non-technical user (a CGP / financial advisor) understand, configure, and use the Caveau Guard plugin — what it does, how to protect a client folder, how to show the before/after visually, and how the masquer/conserver settings work. Use this skill whenever the user asks "how does Caveau work", "how do I set this up / configure it", "which folders are protected", "how do I anonymise a dossier", "how do I see the before/after", "what's the masquer/conserver table", or seems unsure how to operate the tool — even if they don't name it. Lead with plain language, never jargon, because the user is not technical.
 ---
 
 # Caveau — onboarding & operation (for a non-technical advisor)
@@ -95,24 +95,23 @@ skill **`caveau-anonymize`** — it handles PDFs and Word docs automatically and
 writes anonymised copies into a `clean/` sub-folder. You don't need to re-explain
 the mechanics here; just invoke that skill and work on the cloaked copies.
 
-If they prefer a visual, point them at the webapp (next).
+If they prefer a visual, show them the **before/after artifact** (next).
 
-### 3. Run the local web app (the visual tool)
+### 3. Show the visual (before/after + masquer/conserver)
 
-Some advisors like to *see* the before/after rather than trust a black box. The
-webapp does exactly that, and also hosts the risk-control dashboard + the
-masquer/conserver settings.
+Some advisors like to *see* the before/after rather than trust a black box. In
+Cowork, the way to do that is a **Caveau artifact** — a rich panel that renders
+right on their screen with the highlighted before/after, the verdict, and the
+masquer/conserver toggle table. Generate it with the `caveau-anonymize` skill's
+"Show the before/after visually" step (`scripts/make_artifact.py`) and present
+it. For a demo, use a fictional sample — never real client data.
 
-- It's a local app — runs only on their machine, binds to `127.0.0.1`, makes no
-  outbound calls. Reassure them: closing the terminal stops it; nothing is
-  published.
-- Launch it for them and give them the link (see `references/run-webapp.md` for
-  the exact command, the port, and troubleshooting). The standard URL is
-  `http://127.0.0.1:8765`.
-- Tabs they'll use:
-  - **Accueil** — paste text or drop a document → see what gets anonymised.
-  - **Contrôle & réglages** (the dashboard) — see how often the tool ran, what
-    was flagged "à relire", and the **masquer/conserver** table.
+> **Why not "a web app"?** Caveau also ships a local webapp, but it's a
+> *run-on-your-own-computer-in-a-terminal* tool: it starts a small server on
+> `127.0.0.1`. That can't work inside Cowork (Cowork runs in a sandbox, so its
+> localhost isn't the user's machine). The artifact above is the Cowork-native
+> equivalent and shows the same view. Only mention the standalone webapp to a
+> technical user who runs Caveau on their own machine (see `references/run-webapp.md`).
 
 ## The masquer / conserver table — the one setting advisors actually tune
 

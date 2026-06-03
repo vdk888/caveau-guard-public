@@ -5,6 +5,19 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.4.0 — 2026-06-03
+
+- **Visual tool for Cowork — the before/after as an artifact.** The local webapp
+  (FastAPI on 127.0.0.1) can't run in Cowork's sandbox (its localhost is the VM,
+  not the user's Mac; FastAPI deps aren't vendorable). Added
+  `scripts/make_artifact.py`: runs the same engine and emits one self-contained
+  HTML file (inline CSS, identical view + styling to the webapp) with the
+  highlighted before/after, the verdict, and the masquer/conserver toggle table.
+  The anonymise + onboarding skills now present this artifact as the visual tool.
+  Pure-stdlib + vendored engine — runs in Cowork, zero install.
+- Onboarding no longer sends Cowork users to the dead-end webapp; the standalone
+  webapp is reframed as a power-user/own-machine tool.
+
 ## 1.3.0 — 2026-06-03
 
 - **Cowork enforcement fix.** In Cowork the agent runs in a VM spawned with

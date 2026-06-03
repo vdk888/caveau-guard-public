@@ -92,6 +92,34 @@ engine = AnonymizationEngine(vault=vault)
 print(engine.deanonymize(draft_with_tokens))
 ```
 
+## Show the before/after visually (the "visual tool", Cowork-native)
+
+When the user wants to *see* what gets masked vs kept — the before/after, the
+verdict, and the masquer/conserver table — generate a Caveau **artifact** and
+present it. This is the Cowork equivalent of the local webapp (which can't run in
+Cowork's sandbox: its server binds to the VM's localhost, not the user's screen).
+
+```bash
+# Generates one self-contained HTML file (same view + styling as the webapp).
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/make_artifact.py \
+  --file "<a dossier file>" --mission "<dossier name>" \
+  --out "<a writable path, e.g. the session outputs dir>/caveau-apercu.html"
+# or feed text directly:  --text "…"
+```
+
+Then present that HTML file to the user as an artifact (Cowork: `present_files` /
+`create_artifact` with the generated file). It renders on their screen with the
+before/after columns, the verdict, and the masquer/conserver toggle table.
+
+**The masquer/conserver toggles** reflect the current policy. The artifact is
+sandboxed HTML so it can't write to disk itself — when the user wants to change a
+setting ("conserve les montants", "masque le poste"), YOU update the policy
+(`caveau.policy.save_policy`) and re-run, then re-present the artifact. Same
+outcome as clicking save in the webapp.
+
+**For a non-technical user demo, never use real client data** — use a fictional
+sample (the engine has none baked in; make up a plausible "Jean Dupont" record).
+
 ## Rules
 
 - **Never bypass the guard.** No reading the raw file via an alternate tool.
