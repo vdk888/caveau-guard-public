@@ -222,7 +222,7 @@ def main() -> None:
         post = hooks.setdefault("PostToolUse", [])
         post = [e for e in post if not _entry_is_caveau(e, "posttool_anonymize.py")]
         post.append({
-            "matcher": "Read|Bash|mcp__.*",
+            "matcher": "Read|Bash|mcp__workspace__bash",
             "hooks": [{"type": "command", "command": POST_CMD}],
         })
         hooks["PostToolUse"] = post

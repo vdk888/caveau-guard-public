@@ -5,6 +5,20 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.8.3 — 2026-06-14 (fix)
+
+- **Fix: PostToolUse no longer rewrites arbitrary MCP connector output (the real
+  Gmail `H.reduce` cause).** 1.8.2 skipped structured results by shape, but the
+  hook still MATCHED `mcp__.*`, and rewriting any MCP connector result breaks the
+  Cowork harness — it measures the result as a content-block array, so a rewrite
+  throws `H.reduce is not a function` (live-diagnosed: Gmail failed every call in
+  Cowork-with-Caveau, worked in a plain chat). The PostToolUse matcher is now
+  `Read|Bash|mcp__workspace__bash` only — built-in tools + Cowork's own shell,
+  whose text rewrite is proven safe. Arbitrary `mcp__.*` connectors (Gmail etc.)
+  are no longer touched; PII in their results goes through the explicit
+  `caveau_anonymize_text` / `caveau_read` tools. The 1.8.2 shape-gate stays as a
+  second guard. Regression green.
+
 ## 1.8.2 — 2026-06-14 (fix)
 
 - **Fix: PostToolUse hook no longer breaks MCP connectors (Gmail).** The hook

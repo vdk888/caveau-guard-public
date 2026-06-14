@@ -28,6 +28,13 @@ SAFETY POSTURE (read this — it differs from the folder guard on purpose)
   PostToolUse that failed closed could wedge the whole session.
 - PII-PRESENCE GATE: only rewrites output that actually contains validated PII,
   so benign tool output is never mangled (no over-redaction of normal work).
+- MCP-TOOL SAFETY: this hook is matched on Read|Bash|mcp__workspace__bash ONLY,
+  NOT on arbitrary mcp__.* connectors. Rewriting an MCP connector's result
+  (e.g. Gmail search_threads → {threads:[...]}) breaks the Cowork harness, which
+  measures the result as a content-block array — a flat rewrite throws
+  'H.reduce is not a function' (live-diagnosed 2026-06-14). PII inside MCP
+  connector results is handled by the explicit caveau_anonymize_text/caveau_read
+  tools instead. The `safe`-shape gate in _extract_text is a second guard.
 - Honours the POLICY PANEL (the masquer/conserver entity table the client
   configures) — same toggles as the folder path.
 - VAULT per session/mission → the same person gets the same token across the

@@ -34,7 +34,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Read|Bash|mcp__.*",
+        "matcher": "Read|Bash|mcp__workspace__bash",
         "hooks": [
           {
             "type": "command",
