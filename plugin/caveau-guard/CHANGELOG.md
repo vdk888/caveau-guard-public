@@ -5,6 +5,25 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.7.0 — 2026-06-14
+
+- **`caveau_read` MCP tool — the Cowork workaround for ambient anonymisation.**
+  Live testing showed Cowork RUNS our PostToolUse hook but ignores
+  `updatedToolOutput` for built-in tools (Read/Bash) — output rewrite only takes
+  effect for MCP tools (anthropics/claude-code#32105). So the v1.6 ambient hook
+  can't cloak a built-in Read in Cowork.
+  - New pure-stdlib stdio MCP server (`.mcp.json` → `scripts/caveau_mcp.py`)
+    exposing `caveau_read(path)`: the agent reads client files THROUGH it and the
+    tool's OWN returned content is already anonymised (⟦…⟧), so no rewrite is
+    needed — output is controlled at the source, which Cowork honours for MCP.
+  - Reuses the engine + extractor + policy panel + warm NER daemon + session
+    vault (reversible, consistent tokens with the folder path). FAIL-CLOSED:
+    returns an error, never raw text (opposite of the ambient hook's fail-open).
+  - The folder guard still blocks the bare Read of protected files, steering the
+    agent to `caveau_read`.
+  - Verified locally (CLI --plugin-dir): agent discovers + calls the tool and
+    receives cloaked name/IBAN/email. Cowork-surfacing is the next live test.
+
 ## 1.6.0 — 2026-06-14
 
 - **ML accuracy pack — "protect PII anywhere" (opt-in, off by default).** A new
