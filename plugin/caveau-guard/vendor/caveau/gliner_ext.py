@@ -89,7 +89,13 @@ _MODEL_CACHE: Dict[str, object] = {}
 
 def _load_model(model_id: str):
     """Lazy, cached GLiNER load. Returns None if the backend is unavailable
-    (fail-open: the engine then behaves as pure-regex)."""
+    (fail-open: the engine then behaves as pure-regex).
+
+    ONNX path (the on-device accuracy pack): if CAVEAU_GLINER_ONNX is set to an
+    onnx file name (e.g. "onnx/model_quantized.onnx"), the model loads under
+    onnxruntime — no torch needed at inference (~32ms warm, 71MB runtime vs
+    436MB torch). This is what the warm daemon uses. Falls back to the torch
+    path when the env var is unset (dev/export side)."""
     if model_id in _MODEL_CACHE:
         return _MODEL_CACHE[model_id]
     try:
@@ -97,9 +103,14 @@ def _load_model(model_id: str):
     except Exception:
         _MODEL_CACHE[model_id] = None
         return None
+    onnx_file = os.environ.get("CAVEAU_GLINER_ONNX", "").strip()
     try:
-        model = GLiNER.from_pretrained(model_id)
-        model.eval()
+        if onnx_file:
+            model = GLiNER.from_pretrained(
+                model_id, load_onnx_model=True, onnx_model_file=onnx_file)
+        else:
+            model = GLiNER.from_pretrained(model_id)
+            model.eval()
         _MODEL_CACHE[model_id] = model
         return model
     except Exception:

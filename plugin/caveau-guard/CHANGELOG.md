@@ -5,6 +5,25 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.6.0 — 2026-06-14
+
+- **ML accuracy pack — "protect PII anywhere" (opt-in, off by default).** A new
+  PostToolUse hook anonymises sensitive data in ANY tool result before Claude
+  sees it (a fetched email, a script's stdout, an opened Excel) — not just inside
+  marked folders. On-device GLiNER NER via a warm localhost daemon (~40ms warm),
+  ONNX runtime (~71MB, no PyTorch), nothing leaves the machine.
+  - `caveau_setup_ml.py` — one-time day-one bootstrap: persistent venv + model
+    download + a login LaunchAgent so the daemon is always warm.
+  - `caveau_nerd.py` — warm NER daemon (127.0.0.1 only, idle-shutdown).
+  - `posttool_anonymize.py` — the hook: regex core + daemon NER, opt-in
+    (`posttool_enabled`), FAIL-OPEN, PII-presence gate, honours the policy panel
+    + session vault (reversible, consistent tokens with the folder path).
+  - Self-installer + hooks.json register PostToolUse; cowork-only gate unchanged.
+  - onboarding skill: plain-FR "protect everywhere" branch + accuracy-pack.md.
+- Limit (by design): a doc pasted/dragged straight into the chat is in context
+  before any hook — cannot be auto-anonymised. Onboarding warns about this; it is
+  the user's responsibility. The fail-closed guarantee stays the folder guard.
+
 ## 1.5.0 — 2026-06-14
 
 - **Cowork-only gate on the self-installer — no more host-Mac spill.** The

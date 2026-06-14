@@ -31,6 +31,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"${CLAUDE_PLUGIN_ROOT}/scripts/posttool_anonymize.py\" ] && python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/posttool_anonymize.py\" || exit 0"
+          }
+        ]
+      }
     ]
   }
 }

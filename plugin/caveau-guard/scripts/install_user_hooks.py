@@ -68,15 +68,22 @@ def _install_scripts() -> Path:
     """
     src = Path(PLUGIN_ROOT) / "scripts"
     STABLE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("guard.py", "tripwire.py"):
+    # guard.py + tripwire.py are self-contained (pure stdlib). posttool_anonymize.py
+    # needs the engine in vendor/ AND tripwire.py — we copy those too so the stable
+    # copy is self-sufficient (the hook resolves them via CLAUDE_PLUGIN_ROOT=STABLE_DIR).
+    for name in ("guard.py", "tripwire.py", "posttool_anonymize.py", "caveau_nerd.py"):
         s = src / name
         if s.is_file():
             shutil.copy2(s, STABLE_DIR / name)
-    # carry the optional plugin-root config fallback alongside the scripts so the
-    # relocated copy keeps the same back-compat search behaviour
+    # the optional plugin-root config fallback (back-compat config search)
     cfg_src = Path(PLUGIN_ROOT) / "config"
     if cfg_src.is_dir():
         shutil.copytree(cfg_src, STABLE_DIR / "config", dirs_exist_ok=True)
+    # the engine, so posttool_anonymize.py can import caveau/* from STABLE_DIR/vendor.
+    # Only copied once (skip if present) — it's ~3.5MB and doesn't change per session.
+    vendor_src = Path(PLUGIN_ROOT) / "vendor"
+    if vendor_src.is_dir() and not (STABLE_DIR / "vendor" / "caveau").is_dir():
+        shutil.copytree(vendor_src, STABLE_DIR / "vendor", dirs_exist_ok=True)
     return STABLE_DIR
 
 
@@ -96,6 +103,7 @@ def _wrapped_cmd(script: str) -> str:
 
 GUARD_CMD = _wrapped_cmd("guard.py")
 TRIP_CMD = _wrapped_cmd("tripwire.py")
+POST_CMD = _wrapped_cmd("posttool_anonymize.py")
 
 
 def _in_cowork_vm() -> bool:
@@ -207,6 +215,17 @@ def main() -> None:
             "hooks": [{"type": "command", "command": TRIP_CMD}],
         })
         hooks["UserPromptSubmit"] = ups
+
+        # --- PostToolUse anonymiser (the ML "PII from anywhere" tier) ---
+        # Opt-in at runtime (posttool_enabled in config) — the hook self-disables
+        # when off, so installing the entry is harmless for clients who don't use it.
+        post = hooks.setdefault("PostToolUse", [])
+        post = [e for e in post if not _entry_is_caveau(e, "posttool_anonymize.py")]
+        post.append({
+            "matcher": "Read|Bash|mcp__.*",
+            "hooks": [{"type": "command", "command": POST_CMD}],
+        })
+        hooks["PostToolUse"] = post
 
         p.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except Exception:

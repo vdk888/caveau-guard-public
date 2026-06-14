@@ -1,6 +1,6 @@
 ---
 name: caveau-onboarding
-description: Help a non-technical user (a CGP / financial advisor) understand, configure, and use the Caveau Guard plugin — what it does, how to protect a client folder, how to show the before/after visually, and how the masquer/conserver settings work. Use this skill whenever the user asks "how does Caveau work", "how do I set this up / configure it", "which folders are protected", "how do I anonymise a dossier", "how do I see the before/after", "what's the masquer/conserver table", or seems unsure how to operate the tool — even if they don't name it. Lead with plain language, never jargon, because the user is not technical.
+description: Help a non-technical user (a CGP / financial advisor) understand, configure, and use the Caveau Guard plugin — what it does, how to protect a client folder, how to show the before/after visually, how the masquer/conserver settings work, and how to set up the optional "protect PII everywhere" accuracy pack. Use this skill whenever the user asks "how does Caveau work", "how do I set this up / configure it", "which folders are protected", "how do I anonymise a dossier", "how do I see the before/after", "what's the masquer/conserver table", "protect my data everywhere / not just one folder", "catch PII in my emails / everywhere", "turn on the smart/accurate detection", "install the AI detection", or seems unsure how to operate the tool — even if they don't name it. Lead with plain language, never jargon, because the user is not technical.
 ---
 
 # Caveau — onboarding & operation (for a non-technical advisor)
@@ -129,6 +129,60 @@ They can flip any toggle and save; it sticks and applies to the next
 anonymisation. Frame it as *their* risk call, and gently warn before they keep an
 "identifiant" item in clear.
 
+## The accuracy pack — "protéger les données PARTOUT, pas seulement un dossier" (optional, opt-in)
+
+By default Caveau protects the **folders you mark**. Some advisors want more: have
+the assistant anonymise sensitive data **wherever it appears** — e.g. a client
+e-mails an Excel of their holdings and the assistant reads it during the morning
+mail check. That's the **accuracy pack**: an on-device AI detector that catches
+names/addresses the simple rules miss, and anonymises sensitive data in *anything
+the assistant reads*, not just marked folders.
+
+It's **off by default** and set up **once, ideally with the person who installed
+Caveau for you** (it downloads an AI model — a few hundred MB — the first time).
+
+**When the user asks for this** ("protège mes données partout", "anonymise mes
+e-mails", "active la détection intelligente"):
+
+1. **Explain plainly what it adds and its honest limit** (say both):
+   > « Par défaut, Caveau protège les dossiers que vous marquez. L'option "partout"
+   > ajoute une détection plus fine — une petite IA qui tourne *sur votre
+   > ordinateur* (rien n'est envoyé sur internet) — pour repérer et masquer les
+   > données sensibles dans tout ce que l'assistant lit, pas seulement vos dossiers
+   > clients. Une limite à connaître : si vous *collez ou glissez vous-même* un
+   > document directement dans la conversation, il est déjà sous les yeux de
+   > l'assistant avant que Caveau n'agisse — travaillez toujours depuis vos
+   > fichiers, jamais par copier-coller. »
+2. **Set it up FOR them** — run the bootstrap (don't hand them a command):
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/caveau_setup_ml.py"
+   ```
+   It creates a small dedicated environment, downloads the on-device model, and
+   installs an auto-start so the detector is ready at every login. Watch for the
+   final `✅ ML pack ready` line. First run needs a network connection and a few
+   minutes; after that it's automatic and offline.
+3. **Turn the feature on** — add `"posttool_enabled": true` to the client's
+   Caveau config (the global `~/.config/caveau/caveau-guard.json`, or — in Cowork
+   — to the relevant folder marker). Without this flag the pack stays dormant even
+   once installed (opt-in by design).
+4. **Confirm it's live** in plain words:
+   > « C'est prêt. Désormais, quand l'assistant lit un document, un e-mail, un
+   > tableur, il anonymise automatiquement les informations sensibles avant de les
+   > traiter — où qu'elles se trouvent. Les vraies valeurs restent sur votre
+   > ordinateur, comme toujours. »
+
+**Honest framing to keep** (don't oversell — it builds trust):
+- It runs **100 % local** — the model is on their Mac, nothing is sent anywhere.
+- It's a **broad safety net**, not the hard lock. The *fail-closed* guarantee
+  stays the folder guard on marked folders; this layer fails *open* (if anything
+  goes wrong it lets the original through rather than freeze the session).
+- **The copy-paste / drag-into-chat path is the user's responsibility** — warn
+  about it explicitly. No software can anonymise what's pasted straight into the
+  conversation, because it's already in front of the assistant.
+- The masquer/conserver table (above) governs this layer too — same toggles.
+
+Troubleshooting + the full mechanics are in `references/accuracy-pack.md`.
+
 ## How to talk to the client — tone
 
 - **Plain words, no acronyms.** Say "les informations qui identifient votre
@@ -159,3 +213,9 @@ pitch, the "is it really safe?" answer, the demo walk-through).
   risk missing PII.
 - An amount/job-title is hidden or kept against their wish → it's the
   masquer/conserver table; adjust it (step 3) and re-run.
+- "I turned on protect-everywhere but it's not catching names in e-mails" →
+  check the accuracy pack: run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/caveau_setup_ml.py" --check-only`
+  (it should print `OK`), confirm `posttool_enabled: true` is set, and remember
+  the first detection after a reboot warms the model (the very next read is
+  covered). Names in dense text near the confidence threshold can still slip —
+  it lifts recall, it isn't perfect. See `references/accuracy-pack.md`.
