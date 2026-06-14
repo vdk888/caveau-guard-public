@@ -5,6 +5,22 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.11.1 — 2026-06-14 (finding + honest docs)
+
+- **PROVEN: Cowork does not run PostToolUse on third-party MCP connectors.** A
+  live probe (logged every PostToolUse invocation) across 19 real Gmail calls in
+  Cowork recorded ZERO firings on the mail connector (only Bash fired). So mail
+  containment — correct + fail-safe in unit tests and in plain Claude Code CLI —
+  NEVER ENGAGES in Cowork. It is effectively CLI-only.
+- Consequence for mail in Cowork (now documented honestly, no overclaim): raw
+  mail reaches context; the PreToolUse mail-guard STEER is the only mechanism that
+  fires, and it is best-effort (observed: agent complied once, summarised raw mail
+  twice). The RELIABLE protection for sensitive mail is to route it through a
+  protected folder and read via caveau_read (PreToolUse-enforced). Onboarding
+  skill rewritten to say exactly this.
+- mail_containment left ON BY DEFAULT (harmless fail-safe; protects in CLI). Probe
+  removed. No behaviour change beyond docs + the recorded finding.
+
 ## 1.11.0 — 2026-06-14
 
 - **Mail containment is now ON BY DEFAULT.** `mail_containment` defaults true and

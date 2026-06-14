@@ -241,15 +241,27 @@ Honest scope: a strong steer, NOT the hard containment the folder guard gives �
 raw mail transits the tool result once before you anonymise it. Opt-out:
 `mail_guard:false`.)
 
-**Mail containment — ON BY DEFAULT (`mail_containment`, set false to disable).**
-Caveau intercepts the mail result AFTER the fetch and anonymises
-its text IN PLACE before the model sees it — true containment, raw PII never
-reaches context. It preserves the connector's exact data shape, and FAILS SAFE:
-if the result shape isn't one it can rewrite cleanly, it does nothing (falls back
-to the steer above) rather than risk breaking the connector. It runs even without the ambient ML flag, because mail PII is high-risk. Disable
-with `mail_containment:false` to fall back to the steer only. (It depends on
-undocumented connector/hook shapes, so the fail-safe — pass-through on any
-mismatch — is what makes default-on safe.)
+**Mail containment (`mail_containment`, on by default) — WORKS IN CLI, NOT IN
+COWORK.** When it fires, Caveau intercepts the mail result after the fetch and
+anonymises its text in place (shape-preserving) so raw PII never reaches context.
+But ⚠️ **proven by live test (2026-06-14): Cowork does NOT run PostToolUse hooks
+on third-party MCP connectors** (probed across 19 real Gmail calls — zero fired).
+So in **Cowork, mail containment never engages** — it's effectively CLI-only. It
+fails safe (pass-through, never crashes the connector), so leaving it on is
+harmless, but DO NOT tell a Cowork client their mail is auto-protected. **In
+Cowork, mail protection = the PreToolUse steer only (below), which is
+best-effort, not a guarantee.**
+
+### The honest rule for mail in Cowork (say this to the client)
+Mail PII reaches the assistant the moment the connector returns — Caveau cannot
+mechanically stop that in Cowork. The reliable protections:
+1. **The mail-guard steers** the assistant to anonymise via `caveau_anonymize_text`
+   before summarising — but this depends on the assistant complying (observed:
+   sometimes yes, sometimes it summarises raw mail). Treat it as a nudge, not a lock.
+2. **For TRUE protection, route the email through a protected folder:** save the
+   message/attachment into a marked folder, then read it via `caveau_read`. THAT
+   path is enforced (PreToolUse folder guard + our own MCP tool), the same hard
+   guarantee folders get. This is the recommended workflow for sensitive mail.
 
 ## How to talk to the client — tone
 

@@ -288,12 +288,18 @@ def main() -> None:
     cfg = _load_config()
     tool_name = event.get("tool_name", "")
 
-    # MAIL CONTAINMENT (shape-validated). Runs INDEPENDENTLY of posttool_enabled:
-    # mail PII is high-risk and reaches context the moment the connector returns,
-    # so containment is ON BY DEFAULT (mail_containment defaults to true; set it
-    # false to fall back to the PreToolUse steer only). For mail connector
-    # results, anonymise in place PRESERVING the shape; bail to pass-through on
-    # ANY mismatch/error (fail-safe → never crashes the connector).
+
+    # MAIL CONTAINMENT (shape-validated). Runs INDEPENDENTLY of posttool_enabled;
+    # default ON. Anonymises a mail connector's result in place, shape-preserving,
+    # bailing to pass-through on any mismatch (fail-safe → never crashes).
+    #
+    # ⚠️ PROVEN LIMITATION (live probe 2026-06-14): COWORK DOES NOT FIRE
+    # PostToolUse ON THIRD-PARTY MCP CONNECTORS (0 of 19 real Gmail calls fired
+    # this hook). So in Cowork this NEVER runs on mail — it is effectively
+    # CLI-only. Kept on by default because (a) it works + protects in plain
+    # Claude Code CLI, and (b) it's fail-safe everywhere. In Cowork, mail relies
+    # on the PreToolUse steer (guard.py) + the caveau_read-via-protected-folder
+    # path; this hook is not the mail guarantee there. See onboarding skill.
     if _is_mail_tool(tool_name) and cfg.get("mail_containment", True):
         _try_mail_containment(event, cfg)
         return  # always exits (rewrite or _noop)
