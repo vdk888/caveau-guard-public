@@ -206,6 +206,78 @@ def _daemon_detector(text: str):
     return detect
 
 
+def _is_mail_tool(tool_name: str) -> bool:
+    tl = tool_name.lower()
+    return tl.startswith("mcp__") and (
+        "thread" in tl or "message" in tl or "mailbox" in tl
+        or "mail" in tl or "gmail" in tl or "imap" in tl)
+
+
+def _anonymise_json_strings(obj, engine):
+    """Walk a JSON structure and anonymise every string value IN PLACE, keeping
+    the exact shape. Returns (new_obj, n_changed). This is how mail containment
+    preserves the connector's structure (so no H.reduce) while cloaking PII."""
+    n = 0
+    if isinstance(obj, str):
+        if obj.strip():
+            red = engine.anonymize(obj).anonymized
+            return red, (1 if red != obj else 0)
+        return obj, 0
+    if isinstance(obj, list):
+        out = []
+        for v in obj:
+            nv, c = _anonymise_json_strings(v, engine); out.append(nv); n += c
+        return out, n
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            nv, c = _anonymise_json_strings(v, engine); out[k] = nv; n += c
+        return out, n
+    return obj, 0
+
+
+def _try_mail_containment(event, cfg) -> None:
+    """SHAPE-VALIDATED mail rewrite. Only acts if the tool_response is exactly the
+    shape we know how to rewrite safely; otherwise emits NOTHING (pass-through →
+    the PreToolUse steer still applies, connector never breaks). This is the
+    'safety net' design: containment when shapes match, graceful no-op when they
+    drift — never a malformed rewrite that crashes the connector."""
+    tr = event.get("tool_response")
+    # The shapes we accept: a dict (the connector's structured result) OR a
+    # content-block list. Anything else → bail (don't touch).
+    if not isinstance(tr, (dict, list)):
+        _noop()
+    # Build engine (regex + daemon if up). Daemon text seed: best-effort.
+    try:
+        engine, vpath = None, None
+        sys.path.insert(0, str(_vendor_dir()))
+        from caveau import AnonymizationEngine, Vault
+        from caveau import policy as _policy
+        VAULT_DIR.mkdir(parents=True, exist_ok=True)
+        mission = event.get("session_id", "ambient") or "ambient"
+        vpath = VAULT_DIR / f"{mission}.vault.json"
+        vault = Vault.load(str(vpath)) if vpath.is_file() else Vault(mission=mission)
+        eng = AnonymizationEngine(vault=vault,
+                                  match_filter=_policy.make_match_filter(_policy.load_policy()))
+        new_tr, n = _anonymise_json_strings(tr, eng)
+        if n == 0:
+            _noop()  # nothing cloaked → leave original untouched
+        vault.save(str(vpath))
+        # Emit the rewrite in the EXACT same shape we received (dict→dict, list→list).
+        # We do NOT coerce to {type,text} — preserving shape is the whole point.
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "updatedToolOutput": new_tr,
+                "additionalContext": ("ℹ️ Caveau a anonymisé les données sensibles "
+                                      "de ce résultat e-mail (jetons ⟦…⟧)."),
+            }
+        }))
+        sys.exit(0)
+    except Exception:
+        _noop()  # ANY error → pass through; never crash the connector
+
+
 def main() -> None:
     raw = sys.stdin.read()
     try:
@@ -218,6 +290,15 @@ def main() -> None:
         _noop()  # OPT-IN: off by default
 
     tool_name = event.get("tool_name", "")
+
+    # MAIL CONTAINMENT (shape-validated, opt-in via mail_containment). For mail
+    # connector results, attempt an in-place anonymise that PRESERVES the shape;
+    # bail to pass-through on any mismatch. Separate from the simple-text path
+    # below because mail results are structured.
+    if _is_mail_tool(tool_name) and cfg.get("mail_containment", False):
+        _try_mail_containment(event, cfg)
+        # _try_mail_containment always exits (rewrite or _noop)
+        return
     # Scope: which tools to scrub (default = ingestion tools, not Claude's own writes)
     matcher_substrs = cfg.get("posttool_tools")  # optional explicit allow-list
     if matcher_substrs and not any(s in tool_name for s in matcher_substrs):

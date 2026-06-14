@@ -5,6 +5,25 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.10.0 — 2026-06-14
+
+- **Mail containment (opt-in `mail_containment`) — true protection with a safety
+  net.** The 1.9.1 allow+steer improved output behaviour but live-tested as
+  unreliable: the agent self-censored yet did NOT call caveau_anonymize_text, so
+  raw mail still reached context. This adds real containment: a PostToolUse
+  handler intercepts a mail connector's result and anonymises its string values
+  IN PLACE, PRESERVING the exact data shape (no flat-string clobber → no
+  H.reduce), so raw PII never enters context. SAFETY NET: it only rewrites a
+  shape it can cleanly reproduce; on ANY mismatch/error it emits nothing
+  (pass-through → the 1.9.1 steer still applies), so it can never crash the
+  connector — turning the brittle (undocumented Anthropic-owned shapes)
+  dependency from silent-brick into silent-degrade. Off by default; enable per
+  client. PostToolUse matcher widened to mcp__.* — SAFE because non-mail
+  structured results bail via the simple-text safe-gate (verified: notion-style
+  result untouched). Tests: posttool 19/19, guard 21/21. NOTE: still depends on
+  undocumented connector/hook shapes; the fail-safe is why it's shippable. Needs
+  live Cowork confirmation that the preserved shape is accepted (no H.reduce).
+
 ## 1.9.1 — 2026-06-14 (fix)
 
 - **Fix: mail-guard no longer creates a catch-22.** 1.9.0 DENIED raw mail reads

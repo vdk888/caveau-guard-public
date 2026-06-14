@@ -241,6 +241,16 @@ Honest scope: a strong steer, NOT the hard containment the folder guard gives �
 raw mail transits the tool result once before you anonymise it. Opt-out:
 `mail_guard:false`.)
 
+**Stronger option — mail containment (opt-in, `mail_containment:true`).** When
+enabled, Caveau also intercepts the mail result AFTER the fetch and anonymises
+its text IN PLACE before the model sees it — true containment, raw PII never
+reaches context. It preserves the connector's exact data shape, and FAILS SAFE:
+if the result shape isn't one it can rewrite cleanly, it does nothing (falls back
+to the steer above) rather than risk breaking the connector. Enable it for
+clients who want mail held to the same standard as folders; leave it off to rely
+on the steer. (It depends on undocumented connector/hook shapes, so the
+fail-safe is what makes it safe to ship.)
+
 ## How to talk to the client — tone
 
 - **Plain words, no acronyms.** Say "les informations qui identifient votre
