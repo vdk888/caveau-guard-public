@@ -5,6 +5,24 @@ All notable changes to the plugin. Bump the version in BOTH
 `.claude-plugin/marketplace.json` (two places) on every release, or clients'
 `claude plugin update` will report "already at latest" and skip the new code.
 
+## 1.9.0 — 2026-06-14
+
+- **Mail-guard — enforced anonymisation for e-mail (PreToolUse).** Live test
+  showed that, given a neutral "read my emails", the agent read raw mail and
+  leaked a real e-mail address — it did NOT anonymise on its own. Judgment-based
+  protection is unreliable for a privacy product. Now the guard BLOCKS raw mail-
+  connector reads (Gmail `search_threads`/`get_thread`/`list_messages`… — detected
+  by mail-specific actions since the connector id is an opaque UUID) with a
+  forceful instruction to pipe the fetched text through `caveau_anonymize_text`
+  first. The guard's PreToolUse matcher widened to `mcp__.*` (safe — the guard
+  only emits allow/deny, never updatedToolOutput, so it can't hit the #H.reduce
+  rewrite-shape bug). Non-mail mcp tools (incl. our own caveau_read, workspace
+  bash, notion) are not caught. Opt-out: `mail_guard:false`; extend detection via
+  `mail_tool_patterns`. Tests: guard 21/21 (+7 mail-guard). HONEST SCOPE: this is
+  a strong STEER, not the hard containment the folder guard gives — raw mail still
+  transits the tool result once before the agent anonymises it (Caveau has no mail
+  creds, can't fetch+anonymise mail server-side).
+
 ## 1.8.3 — 2026-06-14 (fix)
 
 - **Fix: PostToolUse no longer rewrites arbitrary MCP connector output (the real

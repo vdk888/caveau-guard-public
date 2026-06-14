@@ -226,6 +226,19 @@ Typical full workflow: `caveau_read` (or `caveau_anonymize_text`) the input →
 reason and draft using tokens → `caveau_write` the final document. The client
 gets real, usable output; you never touched a real name.
 
+## E-mails — the mail-guard (enforced)
+
+Mail lives behind a third-party connector Caveau can't fetch itself, so it can't
+transparently anonymise it. Instead, the guard **blocks raw mail-connector reads**
+(Gmail `search_threads`/`get_thread`/`list_messages`…) and tells you to pipe the
+fetched text through `caveau_anonymize_text` before using it. So when a mail read
+is denied with a 🔒 message: fetch the message, then **always** run its text
+through `caveau_anonymize_text`, and reason only over the anonymised version.
+Never summarise or quote a raw e-mail body. (Honest scope: this is a strong
+steer, not the hard containment the folder guard gives — the raw mail still
+transits the tool result once before you anonymise it. The reliable rule for the
+user: don't act on raw mail; route it through Caveau. Opt-out: `mail_guard:false`.)
+
 ## How to talk to the client — tone
 
 - **Plain words, no acronyms.** Say "les informations qui identifient votre

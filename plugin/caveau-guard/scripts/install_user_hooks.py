@@ -31,11 +31,14 @@ from pathlib import Path
 
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT", str(Path(__file__).resolve().parent.parent))
 
-# Tools Cowork/CLI expose for file access. We include BOTH the standard names
-# (Read/Edit/Write/Glob/Grep/Bash/NotebookEdit) AND Cowork's MCP shell tool
-# (mcp__workspace__bash), which is how Cowork runs shell commands — a plain
-# "Bash" matcher would miss it.
-PRETOOL_MATCHER = "Read|Edit|Write|Glob|Grep|Bash|NotebookEdit|mcp__workspace__bash"
+# Tools the guard inspects. Standard file tools + ALL mcp__ tools: the guard
+# matches mcp__.* so it can intercept mail connectors (gmail search/get) for the
+# mail-guard, and Cowork's shell (mcp__workspace__bash). SAFE to match mcp__.*
+# here because the GUARD only ever emits allow/deny — never updatedToolOutput —
+# so it can't hit the content-block-shape bug that forced the PostToolUse hook
+# to narrow its own matcher (#H.reduce). Non-mail mcp tools just fall through to
+# allow.
+PRETOOL_MATCHER = "Read|Edit|Write|Glob|Grep|Bash|NotebookEdit|mcp__.*"
 
 # A marker so we can recognise (and update) our own entries idempotently.
 MARKER = "caveau-guard"

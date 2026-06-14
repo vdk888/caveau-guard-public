@@ -244,6 +244,39 @@ def main() -> None:
     block_bash = bool(cfg.get("block_bash", True))
     g_message = cfg.get("message_fr") or DEFAULT_MESSAGE
 
+    # --- Mail-tool interception (steer raw mail reads through Caveau) ---------
+    # Mail lives behind a third-party connector (Gmail etc.) that Caveau can't
+    # fetch itself, so we can't transparently anonymise it. What we CAN do: when
+    # the agent calls a mail connector's read/search, DENY it with a forceful
+    # instruction to pipe the fetched text through caveau_anonymize_text before
+    # using it. This is a STEERING block, not containment: the agent will re-call
+    # the tool to actually fetch (only it has creds), so raw mail still transits
+    # the tool result once — but the deny interrupts the silent "just summarise
+    # the raw mail" path (which was observed leaking a real e-mail address).
+    # Opt-out via mail_guard:false. Mail tools are matched by name pattern.
+    if cfg.get("mail_guard", True):
+        tl = tool_name.lower()
+        # Mail connectors carry an OPAQUE id (e.g. mcp__0ef9bd27-..__search_threads)
+        # so "mail"/"gmail" is NOT in the name. Detect by the mail-specific ACTION:
+        # 'thread' and 'message' are strongly mail-specific; also a mail/gmail/imap
+        # token if present. Custom mail tools: add patterns via mail_tool_patterns.
+        extra = [str(p).lower() for p in cfg.get("mail_tool_patterns", [])]
+        is_mail = (tl.startswith("mcp__") and (
+            "thread" in tl or "message" in tl or "mailbox" in tl
+            or "mail" in tl or "gmail" in tl or "imap" in tl
+            or any(p in tl for p in extra)))
+        if is_mail:
+            _deny(
+                "🔒 Caveau — ne traite pas les e-mails bruts directement. "
+                "Le contenu d'un e-mail peut contenir des données identifiantes "
+                "d'un client (nom, e-mail, IBAN…).\n"
+                "→ Après avoir récupéré le(s) message(s), fais IMPÉRATIVEMENT "
+                "passer leur texte par l'outil `caveau_anonymize_text` AVANT de "
+                "les lire, résumer ou citer. Travaille ensuite uniquement sur la "
+                "version anonymisée (jetons ⟦…⟧).\n"
+                "[Caveau mail-guard: " + tool_name + "]")
+            return
+
     def _ext_exempt(p: Path, exts: tuple) -> bool:
         if not exts:
             return False
